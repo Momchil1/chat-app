@@ -7,26 +7,18 @@
 <body>
 <p>Welcome to chat app</p>
 
+<ol id="messages"></ol>
+
+<form id="message-form">
+    <input name="message" type="text" placeholder="Message"/>
+    <button>Send</button>
+</form>
+
 <!--we wrap our HTTP server in Socket.IO and it intercepts requests for "/socket.io/socket.io.js" and sends
 <!--the appropriate response automatically. This way we load the library available from the server when we -->
 <!--initiate the socket.io and it's the needed path for socket.io to work -->
 <script src="/socket.io/socket.io.js"></script>
-<script>
-    // io() is method available to us from the above library. When we call it, we initiate a request from the client
-    // to the server to open up a web socket and keep that connection open. Socket variable is critical to
-    // communicating between client and server. It's needed to listen for data from the server and to send data from
-    // client to the server
-    var socket = io();
-
-    // the on event is the same as the on event on the server. In this case we don't have access to the
-    // socket argument since we have it already above
-    socket.on('connect', () => { // when there is a connection
-        console.log('Connected to server');
-    })
-
-    socket.on('disconnect', () => { // when disconnected
-        console.log('Disconnected from server');
-    })
-</script>
+<script src="js/libs/jquery-3.3.1.min.js"></script>
+<script src="js/index.js"></script>
 </body>
 </html>
