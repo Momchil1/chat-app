@@ -4,7 +4,7 @@ const express = require('express');
 const socketIO = require('socket.io');
 const publicPath = path.join(__dirname, '../public'); // the result will be /public and not server/../public
 const port = process.env.PORT || 3000;
-const {generateMessage} = require('./utils/message');
+const {generateMessage, generateLocationMessage} = require('./utils/message');
 
 // web sockets create a persistent 2-way connection between server and browser(tab) until some of them are shut down
 
@@ -46,6 +46,9 @@ io.on('connection', (socket) => { // we have access to the socket argument
 
         // we call the callback so the client understands that the server has received the message sent by client
         callback('Acknowledged from server');
+    });
+    socket.on('createLocationMessage', (coords) => {
+        io.emit('newLocationMessage', generateLocationMessage('Admin', coords.latitude, coords.longitude));
     });
 
     socket.on('disconnect', () => { // when disconnected
