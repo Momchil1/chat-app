@@ -5,15 +5,18 @@ const socketIO = require('socket.io');
 const publicPath = path.join(__dirname, '../public'); // the result will be /public and not server/../public
 const port = process.env.PORT || 3000;
 const {generateMessage, generateLocationMessage} = require('./utils/message');
+const {isRealString} = require('./utils/validation');
+const {Users} = require('./utils/users');
 
 // web sockets create a persistent 2-way connection between server and browser(tab) until some of them are shut down
 
 var app = express();
 var server = http.createServer(app); // express() uses http.createServer behind the scenes, but we need to use it manually in order to use later socket.io
 var io = socketIO(server); // in io we get the web socket server
+var users = new Users();
 
 app.use(express.static(publicPath));
-// we register an event listener. We listen for a specific and do something when this event happens
+// we register an event listener. We listen for a specific event and do something when this event happens
 // these are build-in events
 io.on('connection', (socket) => { // we have access to the socket argument
     console.log('New user connected!');
@@ -26,16 +29,14 @@ io.on('connection', (socket) => { // we have access to the socket argument
     //     createdAt: 123123
     // });
 
-    socket.emit('newMessage', generateMessage('Admin', 'Welcome to chat app'));
-    socket.broadcast.emit('newMessage', generateMessage('Admin', 'New user joined'));
-
     // listen for custom event from client
     socket.on('createMessage', function (message, callback) { // callback argument is optional
-        console.log('New message from client: ', message);
-
-        // io.emit emits an event to every connection, while socket.emit emits an event only to a single connection
-        // when a message is received (message in the above callback) we emit this message to everyone form the server
-        io.emit('newMessage', generateMessage(message.from, message.text));
+        var user = users.getUser(socket.id);
+        if (user && isRealString(message.text)){
+            // io.emit emits an event to every connection, while socket.emit emits an event only to a single connection
+            // when a message is received (message in the above callback) we emit this message to everyone form the server
+            io.to(user.room).emit('newMessage', generateMessage(user.name, message.text));
+        }
 
         // with broadcast we are emitting events for everyone except for this socket(myself)
         // socket.broadcast.emit('newMessage', {
@@ -48,11 +49,36 @@ io.on('connection', (socket) => { // we have access to the socket argument
         callback('Acknowledged from server');
     });
     socket.on('createLocationMessage', (coords) => {
-        io.emit('newLocationMessage', generateLocationMessage('Admin', coords.latitude, coords.longitude));
+        var user = users.getUser(socket.id);
+        if (user){
+            io.to(user.room).emit('newLocationMessage', generateLocationMessage(user.name, coords.latitude, coords.longitude));
+        }
+    });
+
+    socket.on('join', (params, callback) => {
+        if(!isRealString(params.name) || !isRealString(params.room)){
+            return callback('Name and room are required.')
+        }
+        // build-in method join()
+        socket.join(params.room);
+        // we remove user if he has previously joined this room and then we join him
+        users.removeUser(socket.id);
+        users.addUser(socket.id, params.name, params.room);
+
+        io.to(params.room).emit('updateUserList', users.getUserList(params.room));
+        socket.emit('newMessage', generateMessage('Admin', 'Welcome to chat app'));
+        // "to" is used to indicate to which room we want to join
+        socket.broadcast.to(params.room).emit('newMessage', generateMessage('Admin', `${params.name} has joined`));
+        callback();
     });
 
     socket.on('disconnect', () => { // when disconnected
-        console.log('User was disconnected');
+        // when user leaves the room we remove him from the users array and update the list preview
+        var user = users.removeUser(socket.id);
+        if (user){
+            io.to(user.room).emit('updateUserList', users.getUserList(user.room));
+            io.to(user.room).emit('newMessage', generateMessage('Admin', `${user.name} has left.`));
+        }
     })
 });
 
